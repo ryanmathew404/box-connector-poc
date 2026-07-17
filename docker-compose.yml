@@ -1,0 +1,24 @@
+services:
+  eo:
+    image: ghcr.io/ryanmathew404/eurooffice-documentserver:dev
+    container_name: eo
+    environment:
+      - JWT_SECRET=euro-office-dev-jwt-secret-key-2026
+      - USE_UNAUTHORIZED_STORAGE=true
+      - ALLOW_PRIVATE_IP_ADDRESS=true
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  box-poc:
+    image: node:20
+    container_name: box-poc
+    working_dir: /app
+    command: bash -c "npm install --no-audit --no-fund && node server.js"
+    volumes:
+      - ./:/app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - eo
+    restart: unless-stopped

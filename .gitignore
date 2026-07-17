@@ -1,0 +1,5 @@
+node_modules/
+box-config.json
+.env
+package-lock.json
+box-config*.json

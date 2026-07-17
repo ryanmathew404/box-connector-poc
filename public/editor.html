@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>EuroOffice + Box POC</title>
+<style>
+  body { margin: 0; font-family: sans-serif; display: flex; flex-direction: column; height: 100vh; }
+  #bar { padding: 8px 12px; background: #222; color: #eee; display: flex; gap: 14px; align-items: center; font-size: 13px; flex-wrap: wrap; }
+  #bar a { color: #8DC63F; }
+  #bar button { padding: 4px 12px; cursor: pointer; }
+  #status { color: #aaa; }
+  #editor { flex: 1; }
+</style>
+<script src="__DOC_SERVER__/web-apps/apps/api/documents/api.js"></script>
+</head>
+<body>
+<div id="bar">
+  <b>Box POC</b>
+  <span>file __FILE_ID__ &middot; viewing as <b>__AS__</b></span>
+  <a href="/open/__FILE_ID__?as=owner&k=__KEY__" style="__OWNER_LINK__">open as owner</a>
+  <a href="/open/__FILE_ID__?as=viewer">open as viewer</a>
+  <button id="saveBtn">Save to Box</button>
+  <span id="status">loading config...</span>
+</div>
+<div id="editor"></div>
+<script>
+const FILE_ID = '__FILE_ID__', AS = '__AS__', KEY = '__KEY__';
+const status = (m) => { document.getElementById('status').textContent = m; console.log('[poc]', m); };
+let docEditor;
+
+fetch(`/api/config/${FILE_ID}?as=${AS}&k=${KEY}`).then(r => r.json()).then(({ config, token, flags, error }) => {
+  if (error) { status('config error: ' + error); return; }
+  docEditor = new DocsAPI.DocEditor('editor', Object.assign({}, config, {
+    token: token,
+    width: '100%', height: '100%',
+    events: {
+      onDocumentReady: () => status('document ready · flags: ' + JSON.stringify(flags)),
+      onDownloadAs: (e) => {
+        const url = e && e.data && e.data.url;
+        if (!url) { status('downloadAs returned no url'); return; }
+        status('uploading new version to Box...');
+        fetch(`/api/save/${FILE_ID}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) })
+          .then(r => r.json())
+          .then(j => status(j.ok ? `saved to Box: new version (${j.bytes} bytes)` : 'save failed: ' + j.error));
+      },
+      onError: (e) => status('editor error: ' + JSON.stringify(e && e.data)),
+    }
+  }));
+}).catch(e => status('failed to load config: ' + e));
+
+document.getElementById('saveBtn').onclick = () => { if (docEditor) docEditor.downloadAs(); };
+
+// FileOpen owner-permission relay — same message contract as js/fo-fileperms.js in the
+// Nextcloud app. The editor's Protection tab posts fo:savePerms to its parent (this page).
+window.addEventListener('message', (ev) => {
+  let d = ev.data;
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { return; } }
+  if (!d || d.type !== 'fo:savePerms') return;
+  fetch(`/api/perms/${FILE_ID}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      allowEdit: d.allowEdit !== false,
+      allowPrint: d.allowPrint !== false,
+      allowDownload: d.allowDownload !== false
+    })
+  }).then(r => r.json())
+    .then(j => status(j.ok ? 'restrictions saved to Box metadata: ' + JSON.stringify(j.saved) : 'perms save failed: ' + j.error));
+});
+</script>
+</body>
+</html>
