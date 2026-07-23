@@ -1,4 +1,4 @@
-# EuroOffice + Box connector (proof of concept)
+# EuroOffice + Box connector
 
 Runs our EuroOffice fork against Box as the storage backend, no Nextcloud involved. The connector opens Box files in our editor, shows the FileOpen Protection tab to the file owner, stores the restriction flags in Box file metadata, enforces them for everyone else, and saves edits back to Box as new file versions.
 
