@@ -9,7 +9,20 @@
   #bar a { color: #8DC63F; }
   #bar button { padding: 4px 12px; cursor: pointer; }
   #status { color: #aaa; }
+  #editor-wrap { flex: 1; display: flex; }
   #editor { flex: 1; }
+  /* Browser-print block. Fail closed: the content is hidden for print by default and
+     this rule is only lifted once the config confirms printing is allowed. Stops the
+     casual Ctrl+P / File>Print. NOT real protection: devtools can drop the rule and a
+     screenshot bypasses it entirely. */
+  #print-notice { display: none; }
+  /* NOTE: DocsAPI.DocEditor REPLACES the #editor div with its iframe, so a
+     "body > #editor" selector matches nothing once the editor has loaded. Target the
+     wrapper and the iframe itself. */
+  @media print {
+    body > #bar, body > #editor-wrap, body > iframe, #editor-wrap iframe { display: none !important; }
+    #print-notice { display: block !important; font: 16px sans-serif; padding: 48px; text-align: center; color: #000; }
+  }
 </style>
 <script src="__DOC_SERVER__/web-apps/apps/api/documents/api.js"></script>
 </head>
@@ -22,14 +35,22 @@
   <button id="saveBtn">Save to Box</button>
   <span id="status">loading config...</span>
 </div>
-<div id="editor"></div>
+<div id="print-notice">Printing is restricted for this document by the owner (FileOpen).</div>
+<div id="editor-wrap"><div id="editor"></div></div>
+<style id="print-block"></style>
 <script>
 const FILE_ID = '__FILE_ID__', AS = '__AS__', KEY = '__KEY__';
 const status = (m) => { document.getElementById('status').textContent = m; console.log('[poc]', m); };
 let docEditor;
 
-fetch(`/api/config/${FILE_ID}?as=${AS}&k=${KEY}`).then(r => r.json()).then(({ config, token, flags, error }) => {
+fetch(`/api/config/${FILE_ID}?as=${AS}&k=${KEY}`).then(r => r.json()).then(({ config, token, flags, asOwner, error }) => {
   if (error) { status('config error: ' + error); return; }
+  // Lift the print block only when printing is actually permitted. Owners keep their
+  // own print rights even after restricting printing for everyone else.
+  if (asOwner || (flags && flags.allowPrint)) {
+    document.getElementById('print-block').textContent =
+      '@media print { body > #editor-wrap { display: flex !important; } body > iframe, #editor-wrap iframe { display: block !important; } #print-notice { display: none !important; } }';
+  }
   docEditor = new DocsAPI.DocEditor('editor', Object.assign({}, config, {
     token: token,
     width: '100%', height: '100%',
